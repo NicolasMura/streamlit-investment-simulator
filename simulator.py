@@ -10,6 +10,15 @@ import math
 
 st. set_page_config(layout="wide")
 
+st.write(
+    '''
+        <a href="https://github.com/NicolasMura/streamlit-investment-simulator" style="display: inline-flex; align-items: center; text-decoration:none; color: inherit">
+            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" width="22px" />
+            <span style="margin-left: 10px; vertical-align: text-bottom;">Code source</span>
+        </a>
+    ''',
+    unsafe_allow_html=True)
+
 st.markdown('## Étape 1 - Intérêts composés')
 
 st.markdown('Si toi aussi tu veux devenir rentier, joue avec moi.')
@@ -55,7 +64,7 @@ with col1:
         initial_capital = st.number_input('Capital initial (€)', 0, None, 20000, key='initial_capital')
         monthly_amount = st.number_input('Montant mensuel investi (€)', 0, None, 300, key='monthly_amount')
         investment_period = st.slider('Durée de l\'investissement (années)', 2, 100, 24, key='investment_period', label_visibility='visible')
-        average_annual_performance = st.slider('Performance annuelle moyenne (%)', 1, 30, 7, key='average_annual_performance', label_visibility='visible')
+        average_annual_performance = st.slider('Performance annuelle moyenne (%)', 1, 30, 10, key='average_annual_performance', label_visibility='visible')
 
         st.form_submit_button('Simuler les intérêts composés')
 
