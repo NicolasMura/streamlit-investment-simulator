@@ -8,7 +8,7 @@ import numpy as np
 import altair as alt
 import math
 
-st. set_page_config(layout="wide")
+st.set_page_config(layout='wide')
 
 st.write(
     '''
@@ -23,101 +23,155 @@ st.markdown('## Étape 1 - Intérêts composés')
 
 st.markdown('Si toi aussi tu veux devenir rentier, joue avec moi.')
 
-# @st.cache_data()
-def get_chart(data):
-    hover = alt.selection_single(
-        fields=["date"],
-        nearest=True,
-        on="mouseover",
-        empty="none",
-    )
 
-    lines = (
-        alt.Chart(data, height=500, title="Evolution of stock prices")
-        .mark_line()
-        .encode(
-            x=alt.X("date", title="Date"),
-            y=alt.Y("price", title="Price"),
-            color="symbol",
-        )
-    )
+@st.cache_data()
+def compute_capital_with_interests(
+    initial_capital,
+    monthly_amount,
+    investment_period_in_years,
+    average_monthly_performance,
+    monthly_management_fees
+):
+    initial_capital_interests = initial_capital * \
+        math.pow(1 + average_monthly_performance,
+                 12 * investment_period_in_years)
+    initial_capital_interests_with_fees = initial_capital * \
+        math.pow(1 + (average_monthly_performance - monthly_management_fees), 12 * investment_period_in_years)
+    composed_interests = (monthly_amount * (math.pow(1 + average_monthly_performance, 12 *
+                          investment_period_in_years) - 1)) / (average_monthly_performance)
+    composed_interests_with_fees = (monthly_amount * (math.pow(1 + average_monthly_performance - monthly_management_fees,
+                                     12 * investment_period_in_years) - 1)) / (average_monthly_performance - monthly_management_fees)
 
-    # Draw points on the line, and highlight based on selection
-    points = lines.transform_filter(hover).mark_circle(size=65)
+    final_capital = initial_capital_interests + composed_interests
+    final_capital_with_fees = initial_capital_interests_with_fees + \
+        composed_interests_with_fees
 
-    return (lines + points).interactive()
+    return final_capital, final_capital_with_fees
 
-def compute_capital_with_interests(initial_capital, monthly_amount, investment_period_in_years, average_monthly_performance):
-    initial_capital_with_interests = initial_capital * math.pow(1 + average_monthly_performance, 12 * investment_period_in_years)
-    composed_interests = (monthly_amount *  (math.pow(1 + average_monthly_performance, 12 * investment_period_in_years) - 1)) / (average_monthly_performance)
 
-    return initial_capital_with_interests + composed_interests
+@st.cache_data()
+def compute_capital(
+    initial_capital,
+    monthly_amount,
+    investment_period_in_years
+):
+    return initial_capital + monthly_amount * investment_period_in_years * 12
 
-def compute_capital(initial_capital, monthly_amount, investment_period_in_years):
-   return initial_capital + monthly_amount * investment_period_in_years * 12;
 
 total = 0
 
 col1, col2 = st.columns([2, 3])
 with col1:
     with st.form('form'):
-        initial_capital = st.number_input('Capital initial (€)', 0, None, 20000, key='initial_capital')
-        monthly_amount = st.number_input('Montant mensuel investi (€)', 0, None, 300, key='monthly_amount')
-        investment_period = st.slider('Durée de l\'investissement (années)', 2, 100, 24, key='investment_period', label_visibility='visible')
-        average_annual_performance = st.slider('Performance annuelle moyenne (%)', 1, 30, 10, key='average_annual_performance', label_visibility='visible')
+        initial_capital = st.number_input(
+            'Capital initial (€)', min_value=0, max_value=None, value=20000, key='initial_capital')
+        monthly_amount = st.number_input(
+            'Montant mensuel investi (€)', min_value=0, max_value=None, value=350, key='monthly_amount')
+        investment_period = st.slider('Durée de l\'investissement (années)',
+                                      min_value=2, max_value=100, value=24, key='investment_period', label_visibility='visible')
+        average_annual_performance = st.slider(
+            'Performance annuelle moyenne (%)', min_value=1, max_value=30, value=10, key='average_annual_performance', label_visibility='visible')
+        annual_management_fees = st.slider(
+            'Frais (%)', min_value=0.00, max_value=5.00, value=0.70, step=0.1, key='annual_management_fees', label_visibility='visible')
 
         st.form_submit_button('Simuler les intérêts composés')
 
-with col2:
-    capital = compute_capital(
+current_date = pd.Timestamp('today')
+# st.write(current_date)
+# st.write(type(current_date))
+
+# st.write((math.pow(1 + average_annual_performance / 100, 1 / 12) - 1) * 100)
+data = np.array(
+    [[current_date, initial_capital, initial_capital, initial_capital]])
+for i in range(investment_period):
+    current_capital = compute_capital(
         initial_capital,
         monthly_amount,
-        investment_period
+        i + 1
     )
-    capital_with_interests = compute_capital_with_interests(
+    capital_with_interests, capital_with_interests_with_fees = compute_capital_with_interests(
         initial_capital,
         monthly_amount,
-        investment_period,
-        math.pow(1 + average_annual_performance / 100, 1 / 12) - 1
+        i + 1,
+        math.pow(1 + average_annual_performance / 100, 1 / 12) - 1,
+        math.pow(1 + annual_management_fees / 100, 1 / 12) - 1,
     )
-    current_date = pd.Timestamp('today')
-    current_year = pd.Timestamp('today').year
-
-    data = np.array([[current_date, initial_capital, initial_capital]])
-    for i in range(investment_period):
-        current_capital = compute_capital(
-            initial_capital,
-            monthly_amount,
-            i + 1
+    if 'data' in locals():
+        data = np.append(
+            data,
+            np.array([[
+                current_date + pd.DateOffset(years=i+1),
+                current_capital,
+                capital_with_interests_with_fees,
+                capital_with_interests,
+            ]]),
+            axis=0
         )
-        current_capital_with_interests = compute_capital_with_interests(
-            initial_capital,
-            monthly_amount,
-            i + 1,
-            math.pow(1 + average_annual_performance / 100, 1 / 12) - 1
-        )
-        if 'data' in locals():
-            data = np.append(
-                data,
-                np.array([[current_date + pd.DateOffset(years=i+1), round(current_capital_with_interests), round(current_capital)]]),
-                axis=0
-            )
-        else:
-           data = np.array([[current_date, initial_capital, initial_capital]])
+    else:
+        data = np.array([[current_date, initial_capital, initial_capital]])
 
-    chart_data = pd.DataFrame(
-        data,
-        columns=['date', 'Avec intérêts composés', 'Sans intérêts composés']
-    )
+# st.write(type(data))
+# st.write(data)
 
-    c1 = alt.Chart(chart_data, height=500).mark_line(point=True).encode(
-        x=alt.X("date", title="Date"),
-        y=alt.Y("Avec intérêts composés", title=None, scale=alt.Scale(zero=False)),
-        color=alt.value('red')
-    )
-    c2 = alt.Chart(chart_data, height=500).mark_line(point=True).encode(
-        x=alt.X("date", title="Date"),
-        y=alt.Y("Sans intérêts composés", scale=alt.Scale(zero=False)),
-    )
+source_tmp = pd.DataFrame(
+    data,
+    # columns=['A', 'B', 'C'], index=pd.RangeIndex(100, name='x')
+    columns=['Date', 'Sans intérêts composés',
+             'Avec intérêts composés (avec frais)', 'Avec intérêts composés (sans frais)'],
+)
+# st.write(source_tmp)
+source_tmp.drop(0)
+# st.write(source_tmp)
+source_tmp = source_tmp.reset_index(drop=True).melt('Date', var_name='Type', value_name='y')
+# st.write(source_tmp)
 
-    st.altair_chart(alt.layer(c1, c2), use_container_width=True)
+# Create a selection that chooses the nearest point & selects based on Date-value
+nearest = alt.selection_point(nearest=True, on='mouseover',
+                        fields=['Date'], empty=False)
+
+# The basic line chart
+composed_interests_chart = alt.Chart(source_tmp).mark_line(point=True).encode(
+    x=alt.X('year(Date):T', title='Année', axis=alt.Axis(grid=False)), # O, N, Q, T, G.
+    y=alt.X('y:Q', title=None, axis=alt.Axis(grid=True, format='s')).scale(zero=False, domain=(source_tmp['y'].min(), source_tmp['y'].max()*120/100)),
+    tooltip=[
+        alt.Tooltip('year(Date):T', title='Année'),
+        alt.Tooltip('y:Q', title='Capital', format='s'),
+    ],
+    color=alt.Color('Type:N', title=None, sort=['Avec intérêts composés (sans frais)', 'Avec intérêts composés (avec frais)'],
+                    scale=alt.Scale(scheme='set1'),
+                    legend=alt.Legend(orient='top-left', strokeColor='gray', fillColor='#FFF',
+                                      labelColor='black', labelLimit=0))
+)
+
+# # Transparent selectors across the chart. This is what tells us
+# # the x-value of the cursor
+selectors = alt.Chart(source_tmp).mark_point().encode(
+    x='year(Date):T',
+    opacity=alt.value(0),
+).add_params(
+    nearest
+)
+
+# Draw points on the line, and highlight based on selection
+points = composed_interests_chart.mark_point().encode(
+    opacity=alt.condition(nearest, alt.value(1), alt.value(0))
+)
+
+# Draw text labels near the points, and highlight based on selection
+text = composed_interests_chart.mark_text(align='left', dx=5, dy=-20).encode(
+    text=alt.condition(nearest, 'y:Q', alt.value(''), format='s')
+)
+
+# Draw a rule at the location of the selection
+rules = alt.Chart(source_tmp).mark_rule(color='gray').encode(
+    x='year(Date):T',
+).transform_filter(
+    nearest
+)
+
+# Put the five layers into a chart and bind the data
+col2.altair_chart(
+    alt.layer(
+        composed_interests_chart, selectors, points, rules, text),
+    use_container_width=True
+)
