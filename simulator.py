@@ -10,6 +10,17 @@ import math
 
 st.set_page_config(layout='wide')
 
+st.markdown(
+    '''
+        <style>
+               .block-container {
+                    padding-top: 30px;
+                    padding-bottom: 30px;
+                }
+        </style>
+    ''',
+    unsafe_allow_html=True)
+
 st.write(
     '''
         <a href="https://github.com/NicolasMura/streamlit-investment-simulator" style="display: inline-flex; align-items: center; text-decoration:none; color: inherit">
@@ -21,7 +32,7 @@ st.write(
 
 st.markdown('## Étape 1 - Intérêts composés')
 
-st.markdown('Si toi aussi tu veux devenir rentier, joue avec moi.')
+st.markdown('Si toi aussi tu veux devenir rentier, joue avec les paramètres ci-dessous.')
 
 
 @st.cache_data()
@@ -113,29 +124,29 @@ for i in range(investment_period):
 # st.write(type(data))
 # st.write(data)
 
-source_tmp = pd.DataFrame(
+df = pd.DataFrame(
     data,
     # columns=['A', 'B', 'C'], index=pd.RangeIndex(100, name='x')
     columns=['Date', 'Sans intérêts composés',
              'Avec intérêts composés (avec frais)', 'Avec intérêts composés (sans frais)'],
 )
-# st.write(source_tmp)
-source_tmp.drop(0)
-# st.write(source_tmp)
-source_tmp = source_tmp.reset_index(drop=True).melt('Date', var_name='Type', value_name='y')
-# st.write(source_tmp)
+# st.write(df)
+df.drop(0)
+# st.write(df)
+df = df.reset_index(drop=True).melt('Date', var_name='Type', value_name='capital')
+# st.write(df)
 
 # Create a selection that chooses the nearest point & selects based on Date-value
 nearest = alt.selection_point(nearest=True, on='mouseover',
                         fields=['Date'], empty=False)
 
 # The basic line chart
-composed_interests_chart = alt.Chart(source_tmp).mark_line(point=True).encode(
+composed_interests_chart = alt.Chart(df).mark_line(point=True).encode(
     x=alt.X('year(Date):T', title='Année', axis=alt.Axis(grid=False)), # O, N, Q, T, G.
-    y=alt.X('y:Q', title=None, axis=alt.Axis(grid=True, format='s')).scale(zero=False, domain=(source_tmp['y'].min(), source_tmp['y'].max()*120/100)),
+    y=alt.X('capital:Q', title=None, axis=alt.Axis(grid=True, format='s')).scale(zero=False, domain=(df['capital'].min(), df['capital'].max()*120/100)),
     tooltip=[
         alt.Tooltip('year(Date):T', title='Année'),
-        alt.Tooltip('y:Q', title='Capital', format='s'),
+        alt.Tooltip('capital:Q', title='Capital', format='s'),
     ],
     color=alt.Color('Type:N', title=None, sort=['Avec intérêts composés (sans frais)', 'Avec intérêts composés (avec frais)'],
                     scale=alt.Scale(scheme='set1'),
@@ -145,7 +156,7 @@ composed_interests_chart = alt.Chart(source_tmp).mark_line(point=True).encode(
 
 # # Transparent selectors across the chart. This is what tells us
 # # the x-value of the cursor
-selectors = alt.Chart(source_tmp).mark_point().encode(
+selectors = alt.Chart(df).mark_point().encode(
     x='year(Date):T',
     opacity=alt.value(0),
 ).add_params(
@@ -159,11 +170,11 @@ points = composed_interests_chart.mark_point().encode(
 
 # Draw text labels near the points, and highlight based on selection
 text = composed_interests_chart.mark_text(align='left', dx=5, dy=-20).encode(
-    text=alt.condition(nearest, 'y:Q', alt.value(''), format='s')
+    text=alt.condition(nearest, 'capital:Q', alt.value(''), format='s')
 )
 
 # Draw a rule at the location of the selection
-rules = alt.Chart(source_tmp).mark_rule(color='gray').encode(
+rules = alt.Chart(df).mark_rule(color='gray').encode(
     x='year(Date):T',
 ).transform_filter(
     nearest
@@ -175,3 +186,16 @@ col2.altair_chart(
         composed_interests_chart, selectors, points, rules, text),
     use_container_width=True
 )
+
+final_capital_without_interests = df[df['Type'].isin(['Sans intérêts composés'])].iloc[-1]['capital']
+final_capital_wit_interests_without_fees = round(df[df['Type'].isin(['Avec intérêts composés (sans frais)'])].iloc[-1]['capital'], 2)
+final_capital_wit_interests_with_fees = round(df[df['Type'].isin(['Avec intérêts composés (avec frais)'])].iloc[-1]['capital'], 2)
+interests = float(final_capital_wit_interests_with_fees) - float(final_capital_without_interests)
+col2.markdown(f'''
+    Avec un capital de **{initial_capital} €** et en épargnant **{monthly_amount} €** par mois
+    pour une durée de **{investment_period} ans**, vous accumulez **{final_capital_without_interests} €**.
+    Si vous avez investi cet argent avec une performance annuelle de **{average_annual_performance}%**,
+    votre patrimoine total sera de **{final_capital_wit_interests_with_fees} €**.
+    Les intérêts accumulés sont donc de
+    {final_capital_wit_interests_with_fees} - {final_capital_without_interests} = **{interests} €**.
+''')
